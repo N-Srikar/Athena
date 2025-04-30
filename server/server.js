@@ -3,7 +3,7 @@ const express = require('express');
 const connectDB = require('./config/db');
 const config = require('./config/config');
 const errorMiddleware = require('./middlewares/errorMiddleware');
-
+const cors = require('cors');
 // Create an Express application
 const app = express();
 
@@ -12,6 +12,10 @@ connectDB();
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+app.use(cors({
+  origin: "http://localhost:3000", // only allow frontend origin
+  credentials: true, // allow cookies/session to be sent
+}));
 
 // Mount API routes
 app.use('/api/auth', require('./routes/authRoutes'));

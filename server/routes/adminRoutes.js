@@ -3,11 +3,12 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const roleMiddleware = require('../middlewares/roleMiddleware');
 
-// Protect all routes in this file
+// Protect all routes in this file using only authentication
 router.use(authMiddleware);
-router.use(roleMiddleware(['admin']));
+
+// GET /api/admin/librarians - View all current librarians
+router.get('/librarians', adminController.getLibrarians);
 
 // POST /api/admin/librarians - Add a new librarian
 router.post('/librarians', adminController.addLibrarian);

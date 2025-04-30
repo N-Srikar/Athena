@@ -16,6 +16,10 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    // Add a field for storing plain text password (only for librarians)
+    plainPassword: {
+      type: String
+    },
     role: {
       type: String,
       enum: ['admin', 'librarian', 'member'],

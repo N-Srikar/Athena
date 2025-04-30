@@ -7,7 +7,7 @@ const calculateFine = require('../utils/calculateFine');
 exports.requestBorrow = async (req, res) => {
   try {
     const { bookId } = req.body;
-    const userId = req.user.id; // Assumes auth middleware sets req.user
+    const userId = req.user.id; // Auth middleware sets req.user
 
     // Check if the book is available
     const book = await Book.findById(bookId);
@@ -20,8 +20,8 @@ exports.requestBorrow = async (req, res) => {
       user: userId,
       book: bookId,
       requestDate: new Date(),
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // e.g., 14 days from now
-      status: 'pending'
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
+      status: 'pending'  // Set to approved immediately for simplicity
     });
 
     res.status(201).json({ message: 'Borrow request submitted', borrowRecord });
@@ -56,19 +56,17 @@ exports.returnBook = async (req, res) => {
   }
 };
 
-// View due books for the member
+// View due/borrowed books for the member (including overdue books)
+
 exports.viewDueBooks = async (req, res) => {
   try {
     const userId = req.user.id;
-    const now = new Date();
-    const dueBooks = await BorrowHistory.find({
+    const borrowedBooks = await BorrowHistory.find({
       user: userId,
-      dueDate: { $gte: now },
-      status: 'approved'
-    });
-    res.status(200).json({ message: 'Due books retrieved', dueBooks });
+      status: { $in: ['pending', 'approved'] }
+    }).populate('book');
+    res.status(200).json({ message: 'Borrowed books retrieved', dueBooks: borrowedBooks });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to retrieve due books', error: error.message });
+    res.status(500).json({ message: 'Failed to retrieve borrowed books', error: error.message });
   }
 };
-

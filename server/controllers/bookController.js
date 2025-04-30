@@ -26,6 +26,10 @@ exports.updateBook = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
+    if (updates.totalCopies !== undefined) {
+      updates.availableCopies = updates.totalCopies;
+    }
+
     const book = await Book.findByIdAndUpdate(id, updates, { new: true });
     if (!book) return res.status(404).json({ message: 'Book not found' });
 
@@ -34,6 +38,7 @@ exports.updateBook = async (req, res) => {
     res.status(500).json({ message: 'Failed to update book', error: error.message });
   }
 };
+
 
 // Delete a book
 exports.deleteBook = async (req, res) => {

@@ -1,12 +1,13 @@
 // controllers/librarianController.js
 const BorrowHistory = require('../models/BorrowHistory');
 const Book = require('../models/Book');
+const calculateFine = require('../utils/calculateFine');
 
 // Approve a borrow request
 exports.approveBorrowRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-    // Logic to update borrow request status to approved
+    // Update borrow request status to approved
     const updatedRequest = await BorrowHistory.findByIdAndUpdate(
       requestId,
       { status: 'approved', approvedAt: new Date() },
@@ -15,6 +16,8 @@ exports.approveBorrowRequest = async (req, res) => {
     if (!updatedRequest) {
       return res.status(404).json({ message: 'Request not found' });
     }
+    // Decrease available copies for the borrowed book
+    await Book.findByIdAndUpdate(updatedRequest.book, { $inc: { availableCopies: -1 } });
     res.status(200).json({ message: 'Borrow request approved', request: updatedRequest });
   } catch (error) {
     res.status(500).json({ message: 'Failed to approve request', error: error.message });
@@ -43,14 +46,22 @@ exports.rejectBorrowRequest = async (req, res) => {
 exports.markBookReturned = async (req, res) => {
   try {
     const { requestId } = req.params;
-    // Update the borrow record to mark returned
-    const updatedRecord = await BorrowHistory.findByIdAndUpdate(
-      requestId,
-      { status: 'returned', returnedAt: new Date() },
-      { new: true }
-    );
+    // Find the borrow record first
+    let record = await BorrowHistory.findById(requestId);
+    if (!record) {
+      return res.status(404).json({ message: 'Borrow record not found' });
+    }
     
-    // Optionally update the book's available copies
+    // Mark as returned and record the return time
+    record.status = 'returned';
+    record.returnedAt = new Date();
+    // Calculate fine using dueDate and returnedAt
+    record.fine = calculateFine(record.dueDate, record.returnedAt);
+    
+    // Save updated record
+    const updatedRecord = await record.save();
+    
+    // Increment available copies for the returned book
     if (updatedRecord) {
       await Book.findByIdAndUpdate(updatedRecord.book, { $inc: { availableCopies: 1 } });
     }
@@ -61,41 +72,31 @@ exports.markBookReturned = async (req, res) => {
   }
 };
 
-// Mark fine as paid (librarian action)
-exports.markFineAsPaid = async (req, res) => {
-  try {
-    const { requestId } = req.params;
-    
-    let record = await BorrowHistory.findById(requestId);
-    if (!record) {
-      return res.status(404).json({ message: 'Borrow record not found' });
-    }
-    
-    // Check if there is a fine to be marked as paid
-    if (record.fine <= 0) {
-      return res.status(400).json({ message: 'No fine to mark as paid' });
-    }
-    
-    // Mark the fine as paid
-    record.finePaid = true;
-    await record.save();
-    
-    res.status(200).json({ message: 'Fine marked as paid', record });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to mark fine as paid', error: error.message });
-  }
-};
 
 // Check overdue books (this could be extended to send notifications, etc.)
 exports.checkOverdueBooks = async (req, res) => {
   try {
     const now = new Date();
+    // Populate book and user so that details are available
     const overdueRecords = await BorrowHistory.find({
       dueDate: { $lt: now },
       status: { $ne: 'returned' }
-    });
+    }).populate('book').populate('user');
+      
     res.status(200).json({ message: 'Overdue books retrieved', overdueRecords });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch overdue books', error: error.message });
+  }
+};
+
+
+exports.getPendingRequests = async (req, res) => {
+  try {
+    const pendingRequests = await BorrowHistory.find({ status: 'pending' })
+      .populate('book')
+      .populate('user'); // Optionally populate user details
+    res.status(200).json({ message: 'Pending requests retrieved', pendingRequests });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to retrieve pending requests', error: error.message });
   }
 };

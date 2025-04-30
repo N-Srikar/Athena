@@ -3,11 +3,9 @@ const express = require('express');
 const router = express.Router();
 const bookController = require('../controllers/bookController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const roleMiddleware = require('../middlewares/roleMiddleware');
 
-// Protect all routes in this file (librarian-only access)
+// Protect all routes using only authentication
 router.use(authMiddleware);
-router.use(roleMiddleware(['librarian']));
 
 // POST /api/books - Add a new book
 router.post('/', bookController.addBook);

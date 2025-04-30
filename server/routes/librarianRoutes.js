@@ -3,11 +3,11 @@ const express = require('express');
 const router = express.Router();
 const librarianController = require('../controllers/librarianController');
 const authMiddleware = require('../middlewares/authMiddleware');
-const roleMiddleware = require('../middlewares/roleMiddleware');
 
-// Protect all routes in this file (librarian-only access)
+// Protect all routes using only authentication
 router.use(authMiddleware);
-router.use(roleMiddleware(['librarian']));
+// GET /api/librarian/pending - Check pending book requests
+router.get('/pending', librarianController.getPendingRequests);
 
 // PATCH /api/librarian/borrow/:requestId/approve - Approve a borrow request
 router.patch('/borrow/:requestId/approve', librarianController.approveBorrowRequest);
@@ -21,7 +21,5 @@ router.patch('/borrow/:requestId/return', librarianController.markBookReturned);
 // GET /api/librarian/overdue - Check overdue books
 router.get('/overdue', librarianController.checkOverdueBooks);
 
-// PATCH /api/librarian/borrow/:requestId/payfine - Mark fine as paid
-router.patch('/borrow/:requestId/payfine', librarianController.markFineAsPaid);
 
 module.exports = router;
