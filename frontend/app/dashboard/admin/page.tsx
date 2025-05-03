@@ -1,17 +1,38 @@
-import { Users, BookOpen, User } from "lucide-react"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import DashboardLayout from "@/components/dashboard-layout"
+import { User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import DashboardLayout from "@/components/dashboard-layout";
+import { getLibrarians } from "@/services/api";
+import Cookies from "js-cookie";
 
 export default function AdminDashboard() {
+  const [userName, setUserName] = useState("User");
+  const [librarianCount, setLibrarianCount] = useState(0);
+
+  useEffect(() => {
+    const storedUserName = Cookies.get("userName");
+    if (storedUserName) {
+      setUserName(storedUserName);
+    }
+    getLibrarians()
+      .then((data) => {
+        setLibrarianCount(data.length);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }, []);
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+            <h1 className="text-3xl font-bold ">Welcome {userName}!</h1>
             <p className="text-muted-foreground">
-              Welcome back! Here's an overview of the library system administration
+              Here's an overview of the Library System.
             </p>
           </div>
         </div>
@@ -26,35 +47,13 @@ export default function AdminDashboard() {
               <User className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-800 dark:text-purple-300">12</div>
+              <div className="text-2xl font-bold text-purple-800 dark:text-purple-300">
+                {librarianCount}
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
     </DashboardLayout>
-  )
+  );
 }
-
-// Sample data
-const librarians = [
-  {
-    name: "Jane Smith",
-    email: "jane.smith@library.com",
-    status: "active",
-  },
-  {
-    name: "John Doe",
-    email: "john.doe@library.com",
-    status: "active",
-  },
-  {
-    name: "Emily Johnson",
-    email: "emily.johnson@library.com",
-    status: "active",
-  },
-  {
-    name: "Michael Brown",
-    email: "michael.brown@library.com",
-    status: "inactive",
-  },
-]

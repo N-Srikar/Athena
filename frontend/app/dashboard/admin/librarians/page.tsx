@@ -1,12 +1,10 @@
-"use client"
+"use client";
 
-import type React from "react"
+import React, { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, MoreHorizontal, Search } from "lucide-react";
 
-import { useState, useEffect } from "react"
-import { Plus, Pencil, Trash2, MoreHorizontal, Search } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,334 +12,280 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import DashboardLayout from "@/components/dashboard-layout"
-import { useToast } from "@/components/ui/use-toast"
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import DashboardLayout from "@/components/dashboard-layout";
+import { useToast } from "@/components/ui/use-toast";
+
+import {
+  getLibrarians,
+  addLibrarian,
+  updateLibrarian,
+  deleteLibrarian,
+} from "@/services/api";
 
 type Librarian = {
-  id: string
-  name: string
-  email: string
-  status: string
-  password?: string
-}
+  _id: string;
+  name: string;
+  email: string;
+  plainPassword?: string;
+};
 
 export default function ManageLibrarians() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [selectedLibrarian, setSelectedLibrarian] = useState<Librarian | null>(null)
-  const [librarians, setLibrarians] = useState<Librarian[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const { toast } = useToast()
+  const [searchQuery, setSearchQuery] = useState("");
+  const [librarians, setLibrarians] = useState<Librarian[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  })
+  // Dialog state
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [selected, setSelected] = useState<Librarian | null>(null);
 
-  // Fetch librarians on component mount
-  useEffect(() => {
-    fetchLibrarians()
-  }, [])
+  // Form state (used for add & edit)
+  const [form, setForm] = useState({ name: "", email: "" });
 
-  const fetchLibrarians = async () => {
+  // --- Fetch all librarians ---
+  const fetchAll = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true)
-      // Sample data for demonstration
-      const sampleLibrarians = [
-        {
-          id: "1",
-          name: "Jane Smith",
-          email: "jane.smith@library.com",
-          status: "active",
-        },
-        {
-          id: "2",
-          name: "John Doe",
-          email: "john.doe@library.com",
-          status: "active",
-        },
-        {
-          id: "3",
-          name: "Emily Johnson",
-          email: "emily.johnson@library.com",
-          status: "active",
-        },
-      ]
-
-      // In a real app, you would fetch from the API
-      // const response = await fetch("/api/admin/librarians")
-      // const data = await response.json()
-
-      setLibrarians(sampleLibrarians)
-    } catch (error) {
-      console.error("Error fetching librarians:", error)
+      const libs = await getLibrarians();
+      setLibrarians(libs);
+    } catch (err: any) {
+      console.error(err);
       toast({
         title: "Error",
-        description: "Failed to load librarians. Please try again.",
+        description: err.message,
         variant: "destructive",
-      })
+        duration: 2000,
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  const filteredLibrarians = librarians.filter(
-    (librarian) =>
-      librarian.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      librarian.email.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  useEffect(() => {
+    if (isAddOpen) {
+      setForm({ name: "", email: "" });
+      setSelected(null);
+    }
+  }, [isAddOpen]);
 
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const filtered = librarians.filter(
+    (l) =>
+      l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      l.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // --- Handlers ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const handleAddLibrarian = async () => {
-    try {
-      // Validate form
-      if (!formData.name || !formData.email) {
-        toast({
-          title: "Error",
-          description: "Name and email are required",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // In a real app, you would send this to the API
-      // const response = await fetch("/api/admin/librarians", {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify({
-      //     name: formData.name,
-      //     email: formData.email,
-      //   }),
-      // })
-
-      // Mock response
-      const newLibrarian = {
-        id: (librarians.length + 1).toString(),
-        name: formData.name,
-        email: formData.email,
-        status: "active",
-        password: "generated-password",
-      }
-
-      // Update local state
-      setLibrarians([...librarians, newLibrarian])
-
-      toast({
-        title: "Success",
-        description: `Librarian added successfully. Password: ${newLibrarian.password}`,
-      })
-
-      setIsAddDialogOpen(false)
-      // Reset form
-      setFormData({
-        name: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-      })
-    } catch (error) {
-      console.error("Error adding librarian:", error)
+  const handleAdd = async () => {
+    if (!form.name || !form.email) {
       toast({
         title: "Error",
-        description: "Failed to add librarian. Please try again.",
+        description: "Name & email required",
         variant: "destructive",
-      })
+        duration: 2000,
+      });
+      return;
     }
-  }
-
-  const handleEditClick = (librarian: Librarian) => {
-    setSelectedLibrarian(librarian)
-    setFormData({
-      name: librarian.name,
-      email: librarian.email,
-      password: "",
-      confirmPassword: "",
-    })
-    setIsEditDialogOpen(true)
-  }
-
-  const handleEditLibrarian = async () => {
     try {
-      if (!selectedLibrarian) return
-
-      // Validate form
-      if (!formData.name || !formData.email) {
-        toast({
-          title: "Error",
-          description: "Name and email are required",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // In a real app, you would send this to the API
-      // const response = await fetch(`/api/admin/librarians/${selectedLibrarian.id}`, {
-      //   method: "PUT",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify({
-      //     name: formData.name,
-      //     email: formData.email,
-      //   }),
-      // })
-
-      // Mock response
-      const updatedLibrarian = {
-        ...selectedLibrarian,
-        name: formData.name,
-        email: formData.email,
-      }
-
-      // Update local state
-      setLibrarians(librarians.map((lib) => (lib.id === selectedLibrarian.id ? updatedLibrarian : lib)))
-
+      const { password, librarianId } = await addLibrarian({
+        name: form.name,
+        email: form.email,
+      });
+      // Append the new librarian
+      setLibrarians((prev) => [
+        ...prev,
+        {
+          _id: librarianId,
+          name: form.name,
+          email: form.email,
+          plainPassword: password,
+        },
+      ]);
       toast({
-        title: "Success",
-        description: "Librarian updated successfully",
-      })
-
-      setIsEditDialogOpen(false)
-    } catch (error) {
-      console.error("Error updating librarian:", error)
+        title: "Librarian Added Successfully!",
+        description: `Password : ${password}`
+      });
+      setIsAddOpen(false);
+      setForm({ name: "", email: "" });
+    } catch (err: any) {
+      console.error(err);
       toast({
         title: "Error",
-        description: "Failed to update librarian. Please try again.",
+        description: err.message,
         variant: "destructive",
-      })
+        duration: 2000,
+      });
     }
-  }
+  };
 
-  const handleDeleteClick = (librarian: Librarian) => {
-    setSelectedLibrarian(librarian)
-    setIsDeleteDialogOpen(true)
-  }
+  const handleEditClick = (lib: Librarian) => {
+    setSelected(lib);
+    setForm({ name: lib.name, email: lib.email });
+    setIsEditOpen(true);
+  };
 
-  const handleDeleteLibrarian = async () => {
-    try {
-      if (!selectedLibrarian) return
-
-      // In a real app, you would send this to the API
-      // const response = await fetch(`/api/admin/librarians/${selectedLibrarian.id}`, {
-      //   method: "DELETE",
-      // })
-
-      // Update local state
-      setLibrarians(librarians.filter((lib) => lib.id !== selectedLibrarian.id))
-
-      toast({
-        title: "Success",
-        description: "Librarian deleted successfully",
-      })
-
-      setIsDeleteDialogOpen(false)
-    } catch (error) {
-      console.error("Error deleting librarian:", error)
+  const handleEdit = async () => {
+    if (!selected) return;
+    if (!form.name || !form.email) {
       toast({
         title: "Error",
-        description: "Failed to delete librarian. Please try again.",
+        description: "Name & email required",
         variant: "destructive",
-      })
+        duration: 2000,
+      });
+      return;
     }
-  }
+    try {
+      const { librarian } = await updateLibrarian(selected._id, {
+        name: form.name,
+        email: form.email,
+      });
+      setLibrarians((prev) =>
+        prev.map((l) => (l._id === selected._id ? librarian : l))
+      );
+      toast({ title: "Librarian Updated Successfully!", description: "" , duration: 2000} );
+      setIsEditOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+        duration : 2000
+      });
+    }
+  };
+
+  const handleDeleteClick = (lib: Librarian) => {
+    setSelected(lib);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!selected) return;
+    try {
+      await deleteLibrarian(selected._id);
+      setLibrarians((prev) => prev.filter((l) => l._id !== selected._id));
+      toast({ title: "Librarian Deleted Successfully!", description: "" , duration: 2000} );
+      setIsDeleteOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error!",
+        description: err.message,
+        variant: "destructive",
+        duration  : 2000
+      });
+    }
+  };
 
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Header + Add button */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Manage Librarians</h1>
-            <p className="text-muted-foreground">Add, edit, or remove librarian accounts</p>
+            <h1 className="text-3xl font-bold">Manage Librarians</h1>
+            <p className="text-muted-foreground">
+              Add, edit, or remove librarian accounts
+            </p>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="sm:w-auto w-full">
+          <Button onClick={() => setIsAddOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add Librarian
           </Button>
         </div>
 
+        {/* Search + Table */}
         <Card>
           <CardHeader>
             <CardTitle>Librarians</CardTitle>
-            <CardDescription>Manage librarian accounts and their access to the system</CardDescription>
             <div className="mt-4 relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search librarians..."
+                placeholder="Search..."
                 className="pl-8 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </CardHeader>
+
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-center">Name</TableHead>
+                  <TableHead className="text-center">Email</TableHead>
+                  <TableHead className="text-center">Password</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                      Loading librarians...
+                    <TableCell colSpan={4} className="text-center py-8">
+                      Loading…
                     </TableCell>
                   </TableRow>
-                ) : filteredLibrarians.length === 0 ? (
+                ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8">
                       No librarians found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLibrarians.map((librarian) => (
-                    <TableRow key={librarian.id}>
-                      <TableCell className="font-medium">{librarian.name}</TableCell>
-                      <TableCell>{librarian.email}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            librarian.status === "active"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-                          }`}
-                        >
-                          {librarian.status === "active" ? "Active" : "Inactive"}
-                        </span>
+                  filtered.map((lib) => (
+                    <TableRow key={lib._id}>
+                      <TableCell className="text-center font-medium">
+                        {lib.name}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">{lib.email}</TableCell>
+                      <TableCell className="text-center">
+                        {lib.plainPassword}
+                      </TableCell>
+                      <TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
+                              <MoreHorizontal />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditClick(librarian)}>
+                            <DropdownMenuItem
+                              onClick={() => handleEditClick(lib)}
+                            >
                               <Pencil className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => handleDeleteClick(librarian)}
-                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteClick(lib)}
+                              className="text-red-500 focus:text-red-500"
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
@@ -357,88 +301,100 @@ export default function ManageLibrarians() {
         </Card>
       </div>
 
-      {/* Add Librarian Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      {/* ——— Add Librarian Dialog ——— */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Add New Librarian</DialogTitle>
-            <DialogDescription>Create a new librarian account with system access</DialogDescription>
+            <DialogDescription>
+              A password will be auto‐generated and shown here.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" name="name" value={formData.name} onChange={handleChange} placeholder="John Doe" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="john.doe@library.com"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              A password will be automatically generated for the new librarian.
-            </p>
+            <Label htmlFor="add-name">Full Name</Label>
+            <Input
+              id="add-name"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+            />
+            <Label htmlFor="add-email">Email</Label>
+            <Input
+              id="add-email"
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsAddOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddLibrarian}>Add Librarian</Button>
+            <Button onClick={handleAdd}>Add Librarian</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Librarian Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      {/* ——— Edit Librarian Dialog ——— */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Edit Librarian</DialogTitle>
-            <DialogDescription>Update librarian account information</DialogDescription>
+            <DialogDescription>
+              Update the librarian’s name or email.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Full Name</Label>
-              <Input id="edit-name" name="name" value={formData.name} onChange={handleChange} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <Input id="edit-email" name="email" type="email" value={formData.email} onChange={handleChange} />
-            </div>
+            <Label htmlFor="edit-name">Full Name</Label>
+            <Input
+              id="edit-name"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+            />
+            <Label htmlFor="edit-email">Email</Label>
+            <Input
+              id="edit-email"
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEditLibrarian}>Save Changes</Button>
+            <Button onClick={handleEdit}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      {/* ——— Delete Confirmation Dialog ——— */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the librarian account for {selectedLibrarian?.name}? This action cannot be
+              Delete librarian <strong>{selected?.name}</strong>? This cannot be
               undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteLibrarian}>
+            <Button
+              variant="destructive"
+              className="bg-red-700 hover:bg-red-600"
+              onClick={handleDelete}
+            >
               Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
-  )
+  );
 }

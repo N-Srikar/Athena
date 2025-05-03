@@ -1,140 +1,176 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Search } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import DashboardLayout from "@/components/dashboard-layout"
-import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/components/ui/use-toast"
+import { useState, useEffect } from "react";
+import { Search, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import DashboardLayout from "@/components/dashboard-layout";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
+import { getMyDueBooks, getMyBorrowHistory } from "@/services/api";
 
 type Borrowing = {
-  id: string
-  bookTitle: string
-  bookId: string
-  borrowDate: string
-  dueDate: string
-  status: string
-  returnDate?: string
-  isOverdue?: boolean
-  fine?: number
-  daysOverdue?: number
-  daysLeft?: number
-}
+  _id: string;
+  book: { _id: string; title: string };
+  approvedAt: string;
+  dueDate: string;
+  status: string;
+  returnDate?: string;
+  fine?: number;
+  daysOverdue?: number;
+  daysLeft?: number;
+  requestDate?: string;
+};
 
 export default function StudentBorrowings() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [borrowings, setBorrowings] = useState<Borrowing[]>([])
-  const [pendingRequests, setPendingRequests] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const { toast } = useToast()
-
-  // Mock student ID - in a real app, this would come from authentication
-  const studentId = "S12345"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [borrowings, setBorrowings] = useState<Borrowing[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<Borrowing[]>([]);
+  const [history, setHistory] = useState<Borrowing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc"); // For history tab
+  const { toast } = useToast();
 
   useEffect(() => {
-    fetchBorrowings()
-  }, [])
+    fetchData();
+  }, []);
 
-  const fetchBorrowings = async () => {
+  const fetchData = async () => {
     try {
-      setIsLoading(true)
+      setIsLoading(true);
 
-      // Sample data for demonstration
-      // In a real app, you would fetch from the API
-      // const response = await fetch(`/api/member/due?studentId=${studentId}`)
-      // const data = await response.json()
+      // Fetch current and pending borrowings
+      const dueBooksResponse = await getMyDueBooks();
+      const dueBooks = dueBooksResponse.dueBooks || [];
 
-      // Mock data
-      const mockBorrowings = [
-        {
-          id: "borrow-001",
-          bookTitle: "To Kill a Mockingbird",
-          bookId: "1",
-          borrowDate: "2025-03-01",
-          dueDate: "2025-03-15",
-          status: "borrowed",
-          isOverdue: false,
-          daysLeft: 4,
-        },
-        {
-          id: "borrow-002",
-          bookTitle: "The Great Gatsby",
-          bookId: "3",
-          borrowDate: "2025-03-05",
-          dueDate: "2025-03-19",
-          status: "borrowed",
-          isOverdue: false,
-          daysLeft: 2,
-        },
-        {
-          id: "borrow-003",
-          bookTitle: "Pride and Prejudice",
-          bookId: "4",
-          borrowDate: "2025-02-25",
-          dueDate: "2025-03-11",
-          status: "borrowed",
-          isOverdue: true,
-          daysOverdue: 1,
-        },
-        {
-          id: "borrow-004",
-          bookTitle: "The Hobbit",
-          bookId: "8",
-          borrowDate: "2025-02-15",
-          dueDate: "2025-03-01",
-          status: "returned",
-          fine:10.1232,
-          returnDate: "2025-03-01",
-        },
-      ]
+      // Fetch student's borrowing history (returned books)
+      const historyRecords = await getMyBorrowHistory();
 
-      const mockPendingRequests = [
-        {
-          id: "req-001",
-          bookTitle: "1984",
-          requestDate: "2025-03-15",
-          status: "pending",
-        },
-      ]
+      // Process due books for current, overdue, and pending
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to midnight
 
-      setBorrowings(mockBorrowings)
-      setPendingRequests(mockPendingRequests)
+      const processedBorrowings = dueBooks
+        .filter((b: any) => b.status === "approved")
+        .map((b: any) => {
+          const dueDate = new Date(b.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          const isOverdue = dueDate < today;
+          const diffTime = Math.abs(dueDate.getTime() - today.getTime());
+          const daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          return {
+            _id: b._id,
+            book: { _id: b.book._id, title: b.book.title },
+            approvedAt: b.borrowedAt || b.requestDate,
+            dueDate: b.dueDate,
+            status: b.status,
+            returnDate: b.returnedAt,
+            fine: b.fine,
+            daysOverdue: isOverdue ? daysDiff : undefined,
+            daysLeft: !isOverdue ? daysDiff : undefined,
+          };
+        });
+
+      const processedPending = dueBooks
+        .filter((b: any) => b.status === "pending")
+        .map((b: any) => ({
+          _id: b._id,
+          book: { _id: b.book._id, title: b.book.title },
+          requestDate: b.requestDate,
+          status: b.status,
+        }));
+
+      // Process history for returned books
+      const processedHistory = historyRecords.map((b: any) => ({
+        _id: b._id,
+        book: { _id: b.book._id, title: b.book.title },
+        approvedAt: b.approvedAt,
+        dueDate: b.dueDate,
+        status: b.status,
+        returnDate: b.returnedAt,
+        fine: b.fine,
+      }));
+
+      setBorrowings(processedBorrowings);
+      setPendingRequests(processedPending);
+      setHistory(processedHistory);
     } catch (error) {
-      console.error("Error fetching borrowings:", error)
+      console.error("Error fetching borrowings:", error);
       toast({
         title: "Error",
         description: "Failed to load borrowings. Please try again.",
         variant: "destructive",
-      })
+        duration: 2000
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  const filteredBorrowings = borrowings.filter(
-    (borrowing) =>
-      (statusFilter === "all" ||
-        (statusFilter === "overdue" && borrowing.isOverdue) ||
-        (statusFilter === "current" && !borrowing.isOverdue && borrowing.status === "borrowed") ||
-        (statusFilter === "returned" && borrowing.status === "returned")) &&
-      borrowing.bookTitle.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  // Filter borrowings based on search query
+  const filterBySearch = (items: Borrowing[]) =>
+    items.filter((item) =>
+      item.book.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
-  const currentBorrowings = filteredBorrowings.filter((b) => b.status === "borrowed" && !b.isOverdue)
-  const overdueBorrowings = filteredBorrowings.filter((b) => b.status === "borrowed" && b.isOverdue)
-  const returnedBorrowings = filteredBorrowings.filter((b) => b.status === "returned")
+  // Sort history by return date
+  const sortedHistory = [...filterBySearch(history)].sort((a, b) => {
+    const dateA = a.returnDate ? new Date(a.returnDate).getTime() : 0;
+    const dateB = b.returnDate ? new Date(b.returnDate).getTime() : 0;
+    return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+  });
+
+  // Toggle sort order for history
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  };
+
+  // Define tab-specific data
+  const currentBorrowings = filterBySearch(
+    borrowings.filter((b) => b.status === "approved")
+  );
+  const overdueBorrowings = filterBySearch(
+    borrowings.filter((b) => b.status === "approved" && b.daysOverdue)
+  );
+  const pendingBorrowings = filterBySearch(pendingRequests);
 
   return (
     <DashboardLayout role="student">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">My Borrowings</h1>
-          <p className="text-muted-foreground">Track your borrowed books and their due dates</p>
+          <p className="text-muted-foreground">Track your Borrowed Books</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search by book title..."
+              className="pl-8 w-full"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
 
         <Tabs defaultValue="current" className="w-full">
@@ -142,7 +178,11 @@ export default function StudentBorrowings() {
             <TabsTrigger value="current">Current</TabsTrigger>
             <TabsTrigger value="overdue" className="relative">
               Overdue
-              {overdueBorrowings.length > 0 && <Badge className="ml-2 bg-red-500">{overdueBorrowings.length}</Badge>}
+              {overdueBorrowings.length > 0 && (
+                <Badge className="ml-2 bg-red-500">
+                  {overdueBorrowings.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="returned">History</TabsTrigger>
             <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -152,7 +192,9 @@ export default function StudentBorrowings() {
             <Card>
               <CardHeader>
                 <CardTitle>Current Borrowings</CardTitle>
-                <CardDescription>Books that you currently have checked out</CardDescription>
+                <CardDescription>
+                  Books that you currently possess
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -161,30 +203,52 @@ export default function StudentBorrowings() {
                       <TableHead>Book Title</TableHead>
                       <TableHead>Borrow Date</TableHead>
                       <TableHead>Due Date</TableHead>
-                      <TableHead>Days Left</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={4}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           Loading borrowings...
                         </TableCell>
                       </TableRow>
                     ) : currentBorrowings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={4}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           No current borrowings found
                         </TableCell>
                       </TableRow>
                     ) : (
                       currentBorrowings.map((borrowing) => (
-                        <TableRow key={borrowing.id}>
-                          <TableCell className="font-medium">{borrowing.bookTitle}</TableCell>
-                          <TableCell>{borrowing.borrowDate}</TableCell>
-                          <TableCell>{borrowing.dueDate}</TableCell>
+                        <TableRow key={borrowing._id}>
+                          <TableCell className="font-medium">
+                            {borrowing.book.title}
+                          </TableCell>
                           <TableCell>
-                            <span className="text-green-600 font-medium">{borrowing.daysLeft} days</span>
+                            {new Date(
+                              borrowing.approvedAt
+                            ).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(borrowing.dueDate).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {borrowing.daysOverdue ? (
+                              <span className="text-red-500 font-medium">
+                                Overdue by {borrowing.daysOverdue} days
+                              </span>
+                            ) : (
+                              <span className="text-green-600 font-medium">
+                                {borrowing.daysLeft} days left
+                              </span>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))
@@ -199,7 +263,9 @@ export default function StudentBorrowings() {
             <Card>
               <CardHeader>
                 <CardTitle>Overdue Books</CardTitle>
-                <CardDescription>Books that are past their due date and need to be returned</CardDescription>
+                <CardDescription>
+                  Books that are past their due date and need to be returned
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -214,24 +280,41 @@ export default function StudentBorrowings() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={4}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           Loading borrowings...
                         </TableCell>
                       </TableRow>
                     ) : overdueBorrowings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={4}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           No overdue books found
                         </TableCell>
                       </TableRow>
                     ) : (
                       overdueBorrowings.map((borrowing) => (
-                        <TableRow key={borrowing.id}>
-                          <TableCell className="font-medium">{borrowing.bookTitle}</TableCell>
-                          <TableCell>{borrowing.borrowDate}</TableCell>
-                          <TableCell>{borrowing.dueDate}</TableCell>
-                          <TableCell className="text-red-500 font-medium">{borrowing.daysOverdue} days</TableCell>
-                          
+                        <TableRow key={borrowing._id}>
+                          <TableCell className="font-medium">
+                            {borrowing.book.title}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(
+                              borrowing.approvedAt
+                            ).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(borrowing.dueDate).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-red-500 font-medium">
+                              {borrowing.daysOverdue} days
+                            </span>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -244,8 +327,20 @@ export default function StudentBorrowings() {
           <TabsContent value="returned" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Borrowing History</CardTitle>
-                <CardDescription>Books that you have previously borrowed and returned</CardDescription>
+                <CardTitle className="flex justify-between items-center">
+                  Borrowing History
+                  <Button variant="outline" size="sm" onClick={toggleSortOrder}>
+                    Sort by Date{" "}
+                    {sortOrder === "asc" ? (
+                      <ArrowUp className="ml-2 h-4 w-4" />
+                    ) : (
+                      <ArrowDown className="ml-2 h-4 w-4" />
+                    )}
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  Books that you have previously borrowed and returned
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -260,24 +355,45 @@ export default function StudentBorrowings() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          Loading borrowings...
+                        <TableCell
+                          colSpan={4}
+                          className="text-center py-8 text-muted-foreground"
+                        >
+                          Loading history...
                         </TableCell>
                       </TableRow>
-                    ) : returnedBorrowings.length === 0 ? (
+                    ) : sortedHistory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={4}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           No borrowing history found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      returnedBorrowings.map((borrowing) => (
-                        <TableRow key={borrowing.id}>
-                          <TableCell className="font-medium">{borrowing.bookTitle}</TableCell>
-                          <TableCell>{borrowing.borrowDate}</TableCell>
-                          <TableCell>{borrowing.returnDate}</TableCell>
+                      sortedHistory.map((borrowing) => (
+                        <TableRow key={borrowing._id}>
+                          <TableCell className="font-medium">
+                            {borrowing.book.title}
+                          </TableCell>
                           <TableCell>
-                           ₹ {borrowing.fine && borrowing.fine > 0 ? `${borrowing.fine.toFixed(2)}` : "0"}
+                            {new Date(
+                              borrowing.approvedAt
+                            ).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {borrowing.returnDate
+                              ? new Date(
+                                  borrowing.returnDate
+                                ).toLocaleDateString()
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            ₹{" "}
+                            {borrowing.fine && borrowing.fine > 0
+                              ? borrowing.fine.toFixed(2)
+                              : "0.00"}
                           </TableCell>
                         </TableRow>
                       ))
@@ -292,7 +408,9 @@ export default function StudentBorrowings() {
             <Card>
               <CardHeader>
                 <CardTitle>Pending Requests</CardTitle>
-                <CardDescription>Books that you have requested but are waiting for approval</CardDescription>
+                <CardDescription>
+                  Books that you have requested but are waiting for approval
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -306,21 +424,35 @@ export default function StudentBorrowings() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={3}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           Loading requests...
                         </TableCell>
                       </TableRow>
-                    ) : pendingRequests.length === 0 ? (
+                    ) : pendingBorrowings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={3}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           No pending requests found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pendingRequests.map((request) => (
-                        <TableRow key={request.id}>
-                          <TableCell className="font-medium">{request.bookTitle}</TableCell>
-                          <TableCell>{request.requestDate}</TableCell>
+                      pendingBorrowings.map((request) => (
+                        <TableRow key={request._id}>
+                          <TableCell className="font-medium">
+                            {request.book.title}
+                          </TableCell>
+                          <TableCell>
+                            {request.requestDate
+                              ? new Date(
+                                  request.requestDate
+                                ).toLocaleDateString()
+                              : "-"}
+                          </TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
@@ -340,5 +472,5 @@ export default function StudentBorrowings() {
         </Tabs>
       </div>
     </DashboardLayout>
-  )
+  );
 }

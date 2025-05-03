@@ -1,8 +1,7 @@
-import Link from "next/link"
-import { BookOpen } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
+import Link from "next/link";
+import { Layers } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Home() {
   return (
@@ -17,15 +16,19 @@ export default function Home() {
         <div className="animate-fade-in space-y-6">
           <div className="flex justify-center">
             <div className="bg-primary h-20 w-20 rounded-full flex items-center justify-center">
-              <BookOpen className="h-10 w-10 text-primary-foreground" />
+              <Layers className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">Athena</h1>
-          <p className="text-xl md:text-2xl text-muted-foreground">Library Management System</p>
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
+            Athena
+          </h1>
+          <p className="text-xl md:text-2xl text-muted-foreground">
+            Library Management System
+          </p>
 
           {/* Login/signup buttons centered below the title */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
-            <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
+            <Button asChild size="lg" className="w-full sm:w-auto">
               <Link href="/login">Login</Link>
             </Button>
             <Button asChild size="lg" className="w-full sm:w-auto">
@@ -37,8 +40,9 @@ export default function Home() {
 
       {/* Simple footer */}
       <footer className="py-6 text-center text-sm text-muted-foreground">
-        <p>© {new Date().getFullYear()} Athena Library Management System</p>
+        {/* <p>Athena Library Management System</p> */}
+        <p>© Srikar Narsingoju</p>
       </footer>
     </div>
-  )
+  );
 }

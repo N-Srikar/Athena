@@ -1,12 +1,10 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState } from "react"
-import { Search, CheckCircle, XCircle, Clock } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react";
+import { useState, useEffect } from "react";
+import { Search, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,54 +12,116 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import DashboardLayout from "@/components/dashboard-layout"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import DashboardLayout from "@/components/dashboard-layout";
+import {
+  getPendingRequests,
+  approveRequest,
+  rejectRequest,
+} from "@/services/api";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function BorrowingRequests() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(null)
-  const [actionDialogOpen, setActionDialogOpen] = useState(false)
-  const [actionType, setActionType] = useState<"approve" | "reject" | null>(null)
-  const [rejectionReason, setRejectionReason] = useState("")
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(
+    null
+  );
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionType, setActionType] = useState<"approve" | "reject" | null>(
+    null
+  );
+  const [pendingRequests, setPendingRequests] = useState<BorrowRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const filteredRequests = borrowRequests.filter(
-    (request) =>
-      request.bookTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.studentId.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  // Fetch pending requests when the component mounts
+  useEffect(() => {
+    const fetchPendingRequests = async () => {
+      try {
+        setIsLoading(true);
+        const requests = await getPendingRequests();
+        setPendingRequests(requests);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Failed to load pending requests");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPendingRequests();
+  }, []);
 
-  const handleAction = (request: BorrowRequest, action: "approve" | "reject") => {
-    setSelectedRequest(request)
-    setActionType(action)
-    setActionDialogOpen(true)
-    if (action === "reject") {
-      setRejectionReason("")
+  // Filter requests based on search query
+  const filteredRequests = pendingRequests.filter((request) => {
+    const query = searchQuery.toLowerCase();
+
+    return (
+      String(request.book?.title).toLowerCase().includes(query) ||
+      String(request.user?.name).toLowerCase().includes(query) ||
+      String(request.user?.studentId).toLowerCase().includes(query)
+    );
+  });
+
+  // Handle approve/reject button clicks
+  const handleAction = (
+    request: BorrowRequest,
+    action: "approve" | "reject"
+  ) => {
+    setSelectedRequest(request);
+    setActionType(action);
+    setActionDialogOpen(true);
+  };
+
+  // Confirm the action and call the backend
+  const confirmAction = async () => {
+    if (!selectedRequest || !actionType) return;
+
+    try {
+      if (actionType === "approve") {
+        await approveRequest(selectedRequest._id);
+        toast({ title: "Request approved successfully" , duration: 2000});
+      } else {
+        await rejectRequest(selectedRequest._id);
+        toast({ title: "Request rejected successfully" , duration: 2000});
+      }
+      // Remove the request from the list after successful action
+      setPendingRequests((prev) =>
+        prev.filter((req) => req._id !== selectedRequest._id)
+      );
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+        duration: 2000
+      });
+    } finally {
+      setActionDialogOpen(false);
+      setSelectedRequest(null);
+      setActionType(null);
     }
-  }
-
-  const confirmAction = () => {
-    if (!selectedRequest || !actionType) return
-
-    // In a real app, you would send this to the backend
-    console.log(`${actionType === "approve" ? "Approving" : "Rejecting"} request:`, {
-      requestId: selectedRequest.id,
-      ...(actionType === "reject" && { reason: rejectionReason }),
-    })
-
-    setActionDialogOpen(false)
-    setSelectedRequest(null)
-    setActionType(null)
-  }
+  };
 
   return (
     <DashboardLayout role="librarian">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Manage Borrow Requests</h1>
-          <p className="text-muted-foreground">Manage book borrowing requests from students</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Manage Borrow Requests
+          </h1>
+          <p className="text-muted-foreground">
+            Approve or Reject borrowing requests from students
+          </p>
         </div>
 
         <Card>
@@ -69,42 +129,78 @@ export default function BorrowingRequests() {
             <CardTitle>Pending Requests</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="mt-4 relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search..."
+                className="pl-8 w-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Request Date</TableHead>
-                  <TableHead>Book Title</TableHead>
-                  <TableHead>Student</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-center">Request Date</TableHead>
+                  <TableHead className="text-center">Book Title</TableHead>
+                  <TableHead className="text-center">Student</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRequests.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8">
+                      Loading pending requests…
+                    </TableCell>
+                  </TableRow>
+                ) : error ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center py-8 text-destructive"
+                    >
+                      Error: {error}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRequests.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       No pending requests found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredRequests.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell>{request.requestDate}</TableCell>
-                      <TableCell className="font-medium">{request.bookTitle}</TableCell>
-                      <TableCell>{request.studentName}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                    <TableRow key={request._id}>
+                      <TableCell className="text-center">
+                        {new Date(request.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {request.book.title}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {request.user.name}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 gap-1 text-destructive border-destructive hover:bg-destructive/10"
+                            className="h-8 gap-1 text-destructive border-red-500 hover:bg-destructive/10"
                             onClick={() => handleAction(request, "reject")}
                           >
-                            <XCircle className="h-4 w-4" />
-                            <span className="hidden sm:inline">Reject</span>
+                            <XCircle className="h-4 w-4 text-red-500" />
+                            <span className="hidden sm:inline text-red-500">
+                              Reject
+                            </span>
                           </Button>
                           <Button
                             size="sm"
-                            className="h-8 gap-1 bg-green-600 hover:bg-green-700"
+                            className="h-8 gap-1 bg-green-600 hover:bg-green-500"
                             onClick={() => handleAction(request, "approve")}
                           >
                             <CheckCircle className="h-4 w-4" />
@@ -125,46 +221,47 @@ export default function BorrowingRequests() {
       <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{actionType === "approve" ? "Approve Request" : "Reject Request"}</DialogTitle>
+            <DialogTitle>
+              {actionType === "approve" ? "Approve Request" : "Reject Request"}
+            </DialogTitle>
             <DialogDescription>
               {actionType === "approve"
                 ? "Confirm that you want to approve this borrowing request."
-                : "Please provide a reason for rejecting this borrowing request."}
+                : "Confirm that you want to reject this borrowing request."}
             </DialogDescription>
           </DialogHeader>
 
           {selectedRequest && (
             <div className="py-4">
               <div className="space-y-1 mb-4">
-                <p className="text-sm font-medium">Book: {selectedRequest.bookTitle}</p>
-                <p className="text-sm text-muted-foreground">
-                  Student: {selectedRequest.studentName} ({selectedRequest.studentId})
+                <p className="text-sm font-medium">
+                  Book : {selectedRequest.book.title}
                 </p>
-                <p className="text-sm text-muted-foreground">Requested on: {selectedRequest.requestDate}</p>
+                <p className="text-sm text-medium">
+                  Student : {selectedRequest.user.name}
+                </p>
+                <br></br>
+                <p className="text-sm text-medium">
+                  Requested on :{" "}
+                  {new Date(selectedRequest.createdAt).toLocaleDateString()}
+                </p>
               </div>
-
-              {actionType === "reject" && (
-                <div className="space-y-2">
-                  <Label htmlFor="reason">Reason for rejection</Label>
-                  <Input
-                    id="reason"
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    placeholder="e.g., Book is reserved, Student has overdue books"
-                  />
-                </div>
-              )}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActionDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setActionDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               onClick={confirmAction}
               className={
-                actionType === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-destructive hover:bg-destructive/90"
+                actionType === "approve"
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-500 hover:bg-red-600"
               }
             >
               {actionType === "approve" ? "Approve" : "Reject"}
@@ -173,11 +270,17 @@ export default function BorrowingRequests() {
         </DialogContent>
       </Dialog>
     </DashboardLayout>
-  )
+  );
 }
 
 // Helper component for the Label
-function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+function Label({
+  htmlFor,
+  children,
+}: {
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
   return (
     <label
       htmlFor={htmlFor}
@@ -185,51 +288,21 @@ function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNo
     >
       {children}
     </label>
-  )
+  );
 }
 
-// Types
+// Type definition based on backend BorrowHistory schema
 type BorrowRequest = {
-  id: string
-  bookTitle: string
-  bookId: string
-  studentName: string
-  studentId: string
-  requestDate: string
-}
-
-// Sample data
-const borrowRequests: BorrowRequest[] = [
-  {
-    id: "req-001",
-    bookTitle: "To Kill a Mockingbird",
-    bookId: "1",
-    studentName: "Alice Johnson",
-    studentId: "S12345",
-    requestDate: "March 15, 2025",
-  },
-  {
-    id: "req-002",
-    bookTitle: "The Great Gatsby",
-    bookId: "3",
-    studentName: "Bob Smith",
-    studentId: "S23456",
-    requestDate: "March 14, 2025",
-  },
-  {
-    id: "req-003",
-    bookTitle: "Pride and Prejudice",
-    bookId: "4",
-    studentName: "Charlie Brown",
-    studentId: "S34567",
-    requestDate: "March 13, 2025",
-  },
-  {
-    id: "req-004",
-    bookTitle: "A Brief History of Time",
-    bookId: "5",
-    studentName: "Diana Prince",
-    studentId: "S45678",
-    requestDate: "March 12, 2025",
-  },
-]
+  _id: string;
+  book: {
+    _id: string;
+    title: string;
+  };
+  user: {
+    _id: string;
+    name: string;
+    studentId: string;
+  };
+  status: string;
+  createdAt: string;
+};

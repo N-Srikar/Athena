@@ -1,12 +1,15 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState } from "react"
-import { Plus, Pencil, Trash2, MoreHorizontal, Search } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react";
+import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, MoreHorizontal, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,98 +17,191 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import DashboardLayout from "@/components/dashboard-layout"
+} from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import DashboardLayout from "@/components/dashboard-layout";
+import { getBooks, addBook, updateBook, deleteBook } from "@/services/api";
 
 export default function ManageBooks() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     title: "",
     author: "",
-    isbn: "",
-    category: "fiction",
+    category: "",
     availableCopies: "1",
     totalCopies: "1",
-  })
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
+
+  const categories = [
+    "fiction",
+    "non-fiction",
+    "science",
+    "history",
+    "biography",
+  ];
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        setIsLoading(true);
+        const list = await getBooks();
+        setBooks(list);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
 
   const filteredBooks = books.filter(
     (book) =>
       book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      book.isbn.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+      book.author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-  const handleAddBook = () => {
-    // In a real app, you would send this data to the backend
-    console.log("Adding book:", {
-      ...formData,
-      availableCopies: Number.parseInt(formData.availableCopies),
-      totalCopies: Number.parseInt(formData.totalCopies),
-    })
-    setIsAddDialogOpen(false)
-    // Reset form
-    setFormData({
-      title: "",
-      author: "",
-      isbn: "",
-      category: "fiction",
-      availableCopies: "1",
-      totalCopies: "1",
-    })
-  }
+  const handleAddBook = async () => {
+    if (!formData.title || !formData.author || !formData.category) {
+      toast({ title: "Title, author, and category are required" , duration: 2000});
+      return;
+    }
+    try {
+      const total = parseInt(formData.totalCopies, 10);
+      const payload = {
+        title: formData.title,
+        author: formData.author,
+        category: formData.category,
+        totalCopies: total,
+        availableCopies: total,
+      };
+      const data = await addBook(payload);
+      const newBook = data.book;
+      setBooks((prev) => [
+        ...prev,
+        {
+          _id: newBook._id,
+          title: newBook.title,
+          author: newBook.author,
+          category: newBook.category,
+          totalCopies: newBook.totalCopies,
+          availableCopies: newBook.availableCopies,
+          isbn: "",
+        },
+      ]);
+      toast({ title: "Book added successfully" , duration  : 2000});
+      setIsAddDialogOpen(false);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+        duration: 2000,
+      });
+    }
+  };
 
   const handleEditClick = (book: Book) => {
-    setSelectedBook(book)
+    setSelectedBook(book);
+    const normalizedCategory = book.category.toLowerCase();
+    const category = categories.includes(normalizedCategory)
+      ? normalizedCategory
+      : "";
     setFormData({
       title: book.title,
       author: book.author,
-      isbn: book.isbn,
-      category: book.category,
+      category,
       availableCopies: book.availableCopies.toString(),
       totalCopies: book.totalCopies.toString(),
-    })
-    setIsEditDialogOpen(true)
-  }
+    });
+    setIsEditDialogOpen(true);
+  };
 
-  const handleEditBook = () => {
-    // In a real app, you would send this data to the backend
-    console.log("Editing book:", {
-      id: selectedBook?.id,
-      ...formData,
-      availableCopies: Number.parseInt(formData.availableCopies),
-      totalCopies: Number.parseInt(formData.totalCopies),
-    })
-    setIsEditDialogOpen(false)
-  }
+  const handleEditBook = async () => {
+    if (!selectedBook) return;
+    try {
+      const updatedBook = {
+        title: formData.title,
+        author: formData.author,
+        category: formData.category,
+        availableCopies: Number.parseInt(formData.availableCopies),
+        totalCopies: Number.parseInt(formData.totalCopies),
+      };
+      const response = await updateBook(selectedBook._id, updatedBook);
+      const updatedBooks = books.map((book) => {
+        if (book._id === selectedBook._id) {
+          return { ...book, ...updatedBook };
+        }
+        return book;
+      });
+      setBooks(updatedBooks);
+      toast({ title: "Book updated successfully" , duration:2000});
+      setIsEditDialogOpen(false);
+    } catch (error) {
+      toast({ title: "Error", variant: "destructive" , duration:2000});
+    }
+  };
 
   const handleDeleteClick = (book: Book) => {
-    setSelectedBook(book)
-    setIsDeleteDialogOpen(true)
-  }
+    setSelectedBook(book);
+    setIsDeleteDialogOpen(true);
+  };
 
-  const handleDeleteBook = () => {
-    // In a real app, you would send this request to the backend
-    console.log("Deleting book:", selectedBook?.id)
-    setIsDeleteDialogOpen(false)
-  }
+  const handleDeleteBook = async () => {
+    if (!selectedBook) return;
+    try {
+      await deleteBook(selectedBook._id);
+      const updatedBooks = books.filter(
+        (book) => book._id !== selectedBook._id
+      );
+      setBooks(updatedBooks);
+      toast({ title: "Book deleted successfully" , duration:2000});
+      setIsDeleteDialogOpen(false);
+    } catch (error) {
+      toast({ title: "Error", variant: "destructive" ,  duration:2000});
+    }
+  };
 
   return (
     <DashboardLayout role="librarian">
@@ -113,16 +209,30 @@ export default function ManageBooks() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Manage Books</h1>
-            <p className="text-muted-foreground">Add, edit, or remove books from the library</p>
+            <p className="text-muted-foreground">
+              Add, Edit, or Remove Books from the library
+            </p>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="sm:w-auto w-full">
+          <Button
+            onClick={() => {
+              setFormData({
+                title: "",
+                author: "",
+                category: "",
+                totalCopies: "1",
+                availableCopies: "1",
+              });
+              setIsAddDialogOpen(true);
+            }}
+            className="sm:w-auto w-full"
+          >
             <Plus className="mr-2 h-4 w-4" /> Add Book
           </Button>
         </div>
 
         <Card>
           <CardHeader>
-            <CardDescription>Manage the books available in the library</CardDescription>
+            <CardTitle>Books available in the Library</CardTitle>
             <div className="mt-4 relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -138,32 +248,56 @@ export default function ManageBooks() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Author</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Available / Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-center">Title</TableHead>
+                  <TableHead className="text-center">Author</TableHead>
+                  <TableHead className="text-center">Category</TableHead>
+                  <TableHead className="text-center">
+                    Available / Total
+                  </TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBooks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                {isLoading ? (
+                  <TableRow key="loading">
+                    <TableCell colSpan={5} className="text-center py-8">
+                      Loading books…
+                    </TableCell>
+                  </TableRow>
+                ) : error ? (
+                  <TableRow key="error">
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-8 text-destructive"
+                    >
+                      Error: {error}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredBooks.length === 0 ? (
+                  <TableRow key="no-books">
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       No books found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredBooks.map((book) => (
-                    <TableRow key={book.id}>
-                      <TableCell className="font-medium">{book.title}</TableCell>
-                      <TableCell>{book.author}</TableCell>
-                      <TableCell className="capitalize">{book.category}</TableCell>
-                      <TableCell>
-                        <span className={book.availableCopies === 0 ? "text-red-500" : ""}>
-                          {book.availableCopies} / {book.totalCopies}
-                        </span>
+                    <TableRow key={book._id}>
+                      <TableCell className="text-center">
+                        {book.title}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
+                        {book.author}
+                      </TableCell>
+                      <TableCell className="text-center capitalize">
+                        {book.category}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {book.availableCopies} / {book.totalCopies}
+                      </TableCell>
+                      <TableCell className="text-center w-20">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -172,12 +306,14 @@ export default function ManageBooks() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditClick(book)}>
+                            <DropdownMenuItem
+                              onClick={() => handleEditClick(book)}
+                            >
                               <Pencil className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDeleteClick(book)}
-                              className="text-destructive focus:text-destructive"
+                              className="text-red-500 focus:text-red-500"
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
@@ -198,7 +334,9 @@ export default function ManageBooks() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Add New Book</DialogTitle>
-            <DialogDescription>Add a new book to the library collection</DialogDescription>
+            <DialogDescription>
+              Add a new book to the library collection
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4">
@@ -223,10 +361,15 @@ export default function ManageBooks() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div>
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
-                <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)}>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    handleSelectChange("category", value)
+                  }
+                >
                   <SelectTrigger id="category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
@@ -240,29 +383,23 @@ export default function ManageBooks() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="availableCopies">Available Copies</Label>
-                <Input
-                  id="availableCopies"
-                  name="availableCopies"
-                  type="number"
-                  min="0"
-                  value={formData.availableCopies}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="totalCopies">Total Copies</Label>
-                <Input
-                  id="totalCopies"
-                  name="totalCopies"
-                  type="number"
-                  min="1"
-                  value={formData.totalCopies}
-                  onChange={handleChange}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="totalCopies">Total Copies</Label>
+              <Input
+                id="totalCopies"
+                name="totalCopies"
+                type="number"
+                min="1"
+                value={formData.totalCopies}
+                onChange={(e) => {
+                  handleChange(e);
+                  setFormData((fd) => ({
+                    ...fd,
+                    totalCopies: e.target.value,
+                    availableCopies: e.target.value,
+                  }));
+                }}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -279,23 +416,40 @@ export default function ManageBooks() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Edit Book</DialogTitle>
-            <DialogDescription>Update book information in the library collection</DialogDescription>
+            <DialogDescription>
+              Update book information in the library collection
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-title">Title</Label>
-                <Input id="edit-title" name="title" value={formData.title} onChange={handleChange} />
+                <Input
+                  id="edit-title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-author">Author</Label>
-                <Input id="edit-author" name="author" value={formData.author} onChange={handleChange} />
+                <Input
+                  id="edit-author"
+                  name="author"
+                  value={formData.author}
+                  onChange={handleChange}
+                />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div>
               <div className="space-y-2">
                 <Label htmlFor="edit-category">Category</Label>
-                <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)}>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    handleSelectChange("category", value)
+                  }
+                >
                   <SelectTrigger id="edit-category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
@@ -335,7 +489,10 @@ export default function ManageBooks() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditBook}>Save Changes</Button>
@@ -349,107 +506,39 @@ export default function ManageBooks() {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{selectedBook?.title}" from the library collection? This action cannot be
-              undone.
+              Are you sure you want to delete "{selectedBook?.title}" from the
+              library collection?
+              <br></br>
+              <br></br>
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteBook}>
+            <Button
+              variant="destructive"
+              className="bg-red-700 hover:bg-red-600"
+              onClick={handleDeleteBook}
+            >
               Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
-  )
+  );
 }
 
-// Types
 type Book = {
-  id: string
-  title: string
-  author: string
-  category: string
-  availableCopies: number
-  totalCopies: number
-  isbn: string
-}
-
-// Sample data
-const books: Book[] = [
-  {
-    id: "1",
-    title: "To Kill a Mockingbird",
-    author: "Harper Lee",
-    category: "fiction",
-    availableCopies: 3,
-    totalCopies: 5,
-    isbn: "978-0061120084",
-  },
-  {
-    id: "2",
-    title: "1984",
-    author: "George Orwell",
-    category: "fiction",
-    availableCopies: 0,
-    totalCopies: 4,
-    isbn: "978-0451524935",
-  },
-  {
-    id: "3",
-    title: "The Great Gatsby",
-    author: "F. Scott Fitzgerald",
-    category: "fiction",
-    availableCopies: 2,
-    totalCopies: 3,
-    isbn: "978-0743273565",
-  },
-  {
-    id: "4",
-    title: "Pride and Prejudice",
-    author: "Jane Austen",
-    category: "fiction",
-    availableCopies: 1,
-    totalCopies: 3,
-    isbn: "978-0141439518",
-  },
-  {
-    id: "5",
-    title: "A Brief History of Time",
-    author: "Stephen Hawking",
-    category: "science",
-    availableCopies: 2,
-    totalCopies: 2,
-    isbn: "978-0553380163",
-  },
-  {
-    id: "6",
-    title: "The Diary of a Young Girl",
-    author: "Anne Frank",
-    category: "biography",
-    availableCopies: 0,
-    totalCopies: 2,
-    isbn: "978-0553577129",
-  },
-  {
-    id: "7",
-    title: "Sapiens: A Brief History of Humankind",
-    author: "Yuval Noah Harari",
-    category: "history",
-    availableCopies: 3,
-    totalCopies: 3,
-    isbn: "978-0062316097",
-  },
-  {
-    id: "8",
-    title: "The Hobbit",
-    author: "J.R.R. Tolkien",
-    category: "fiction",
-    availableCopies: 0,
-    totalCopies: 4,
-    isbn: "978-0547928227",
-  },
-]
+  _id: string;
+  title: string;
+  author: string;
+  category: string;
+  availableCopies: number;
+  totalCopies: number;
+};
