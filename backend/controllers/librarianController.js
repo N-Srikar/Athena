@@ -84,7 +84,7 @@ exports.checkOverdueBooks = async (req, res) => {
     // Populate book and user so that details are available
     const overdueRecords = await BorrowHistory.find({
       dueDate: { $lt: now },
-      status: { $ne: 'returned' }
+      status: 'approved'
     }).populate('book').populate('user');
       
     res.status(200).json({ message: 'Overdue books retrieved', overdueRecords });
