@@ -44,6 +44,7 @@ export default function LoginPage() {
         const token = response.token;
         const name = response.name;
         Cookies.set("token", token, { expires: 1, path: "/" });
+        window.location.href = `/dashboard/${role}`;
         Cookies.set("role", role, { expires: 1, path: "/" });
         Cookies.set("userName", name, { path: "/", expires: 1 });
         router.refresh();
