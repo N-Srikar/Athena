@@ -46,6 +46,7 @@ export default function LoginPage() {
         Cookies.set("token", token, { expires: 1, path: "/" });
         Cookies.set("role", role, { expires: 1, path: "/" });
         Cookies.set("userName", name, { path: "/", expires: 1 });
+        router.refresh();
         if (role === "student") {
           router.push("/dashboard/student");
         } else if (role === "librarian") {
