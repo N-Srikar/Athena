@@ -13,7 +13,7 @@ connectDB();
 // Middleware to parse JSON bodies
 app.use(express.json());
 app.use(cors({
-  origin: "http://localhost:3000", // only allow frontend origin
+  origin: "https://athena-i9sg.vercel.app", // only allow frontend origin
   credentials: true, // allow cookies/session to be sent
 }));
 
