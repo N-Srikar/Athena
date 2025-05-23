@@ -83,7 +83,7 @@ export default function SignupPage() {
         email: formData.email,
         password: formData.password,
       });
-      router.push("/dashboard/student");
+      router.push("/");
     } catch (error: any) {
       setError(error.message);
     }
